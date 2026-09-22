@@ -1,0 +1,48 @@
+{
+  "name": "@galaxy-stack/orbit-queue",
+  "version": "0.3.0",
+  "description": "Job queue for Orbit \u2014 pluggable drivers (memory included), retries with backoff, delayed jobs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target bun --packages external",
+    "build:types": "tsc --emitDeclarationOnly",
+    "clean": "rm -rf dist",
+    "changeset": "changeset"
+  },
+  "dependencies": {
+    "@galaxy-stack/orbit-core": "^0.1.11"
+  },
+  "peerDependencies": {
+    "reflect-metadata": "^0.2.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "reflect-metadata": "^0.2.2",
+    "typescript": "^5.0.0",
+    "@changesets/cli": "^2.27.0"
+  },
+  "author": "Orbit Team",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/galaxy-orbit/orbit-queue.git"
+  },
+  "bugs": {
+    "url": "https://github.com/galaxy-orbit/orbit/issues"
+  },
+  "homepage": "https://galaxy-orbit-framework.vercel.app"
+}
