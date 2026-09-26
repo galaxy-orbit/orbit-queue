@@ -64,6 +64,7 @@ export interface QueueServiceOptions {
   pollIntervalMs?: number;
   /** Base retry delay in ms — doubles per attempt. Default: 1000 */
   retryDelayMs?: number;
+  /** Pre-built driver instance. */
   driver?: QueueDriver;
 }
 
@@ -87,6 +88,7 @@ export class QueueService {
   /** Register a handler for jobs named `name` in `queue` (default queue: 'default'). */
   register(name: string, handler: JobHandler, queue = 'default'): void {
     this.handlers.set(`${queue}:${name}`, handler);
+    this.queues.add(queue);
   }
 
   async add<T = any>(
@@ -128,20 +130,26 @@ export class QueueService {
     return this.driver.count(queue);
   }
 
+  private queues = new Set<string>();
+
   private async loop(): Promise<void> {
     while (this.running) {
       let worked = false;
-      for (const [key, handler] of this.handlers) {
-        const [queue, name] = key.split(':');
-        if (this.activeCount >= this.concurrency) break;
-        const job = await this.driver.claim(queue);
-        if (!job || job.name !== name) {
-          if (job) await this.driver.requeue(job, 5);
-          continue;
+      for (const queue of this.queues) {
+        while (this.activeCount < this.concurrency) {
+          const job = await this.driver.claim(queue);
+          if (!job) break;
+          const handler = this.handlers.get(`${queue}:${job.name}`);
+          if (!handler) {
+            // no handler for this job name — park it so it does not starve others
+            await this.driver.requeue(job, 1000);
+            continue;
+          }
+          worked = true;
+          this.activeCount++;
+          void this.run(job, handler);
         }
-        worked = true;
-        this.activeCount++;
-        void this.run(job, handler);
+        if (this.activeCount >= this.concurrency) break;
       }
       if (!worked) await sleep(this.pollIntervalMs);
     }
@@ -172,9 +180,27 @@ export class QueueService {
       if (q !== queue) continue;
       const job = await this.driver.claim(q);
       if (!job) continue;
-      if (job.name !== name) {
-        await this.driver.requeue(job, 5);
+      const jobHandler = this.handlers.get(`${q}:${job.name}`);
+      if (!jobHandler) {
+        // no handler for this job name — park it
+        await this.driver.requeue(job, 1000);
         continue;
+      }
+      if (job.name !== name) {
+        // belongs to another registered handler in this queue — run via its own handler
+        job.attempts++;
+        try {
+          await jobHandler.process(job);
+          await this.driver.complete(job);
+        } catch (error) {
+          if (job.attempts < (jobHandler.maxAttempts ?? 3)) {
+            await this.driver.requeue(job, this.retryDelayMs * Math.pow(2, job.attempts - 1));
+          } else {
+            jobHandler.onFailed?.(job, error as Error);
+            await this.driver.complete(job);
+          }
+        }
+        return true;
       }
       job.attempts++;
       try {

@@ -1,17 +1,34 @@
 import type { DynamicModule } from '@galaxy-stack/orbit-core';
 import { QueueService, type QueueServiceOptions, MemoryQueueDriver, type QueueDriver } from './queue';
+import { RedisQueueDriver } from './drivers/redis.driver';
 
 export const QUEUE_SERVICE = Symbol('QUEUE_SERVICE');
 export const QUEUE_OPTIONS = Symbol('QUEUE_OPTIONS');
 
+export type QueueModuleOptions = Omit<QueueServiceOptions, 'driver'> & {
+  /** 'redis' uses Bun's native Redis client; pass redisUrl/redisPrefix below. */
+  driver?: QueueDriver | 'redis';
+  redisUrl?: string;
+  redisPrefix?: string;
+};
+
 export class QueueModule {
-  static forRoot(options: QueueServiceOptions = {}): DynamicModule {
+  static forRoot(options: QueueModuleOptions = {}): DynamicModule {
     return {
       module: QueueModule,
       global: true,
       providers: [
         { provide: QUEUE_OPTIONS, useValue: options },
-        { provide: 'QUEUE_DRIVER', useFactory: () => options.driver ?? new MemoryQueueDriver() },
+        {
+          provide: 'QUEUE_DRIVER',
+          useFactory: (opts: QueueModuleOptions) => {
+            if (opts.driver === 'redis') {
+              return new RedisQueueDriver({ url: opts.redisUrl, prefix: opts.redisPrefix });
+            }
+            return opts.driver ?? new MemoryQueueDriver();
+          },
+          inject: [QUEUE_OPTIONS],
+        },
         {
           provide: QUEUE_SERVICE,
           useFactory: (opts: QueueServiceOptions, driver: QueueDriver) =>

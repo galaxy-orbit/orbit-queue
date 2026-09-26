@@ -1,8 +1,16 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
+    "outDir": "./dist",
+    "declaration": true,
+    "declarationDir": "./dist",
+    "rootDir": "./src"
   },
-  "include": ["src/**/*"]
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }
