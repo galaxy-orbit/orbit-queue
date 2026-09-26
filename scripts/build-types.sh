@@ -14,9 +14,17 @@ else
   cd "$here/.."
 fi
 rm -rf .types-tmp
-# Packages may set `declarationDir` in tsconfig, which overrides --outDir;
-# force both to .types-tmp so the emitted tree is where we look for it.
-tsc --emitDeclarationOnly --declarationMap false --outDir .types-tmp --declarationDir .types-tmp
+# Declaration builds must not type-check tests; several packages keep failing
+# test types that would otherwise block `build:types` entirely. Also force
+# --declarationDir because packages set it in tsconfig, overriding --outDir.
+cat > .types-tsconfig.json <<'JSON'
+{
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "dist", ".types-tmp", "**/*.test.ts", "**/*.spec.ts", "**/__tests__/**"]
+}
+JSON
+tsc -p .types-tsconfig.json --emitDeclarationOnly --declarationMap false --outDir .types-tmp --declarationDir .types-tmp
+rm -f .types-tsconfig.json
 entry=$(find .types-tmp -name 'index.d.ts' | awk '{print length, $0}' | sort -n | head -1 | cut -d' ' -f2-)
 if [ -z "$entry" ]; then echo "no index.d.ts emitted for $pkg" >&2; exit 1; fi
 srcdir=$(dirname "$entry")
